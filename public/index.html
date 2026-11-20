@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ADEZ NEXUS – Pair your WhatsApp</title>
+<meta name="theme-color" content="#0e1330">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&family=Sora:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #0e1330;
+    --panel: #171d45;
+    --line: #2a3270;
+    --text: #eef0ff;
+    --muted: #9aa3d6;
+    --gold: #ffc857;
+    --gold-ink: #2a1d00;
+    --ok: #6ee7b7;
+    --bad: #ff8a8a;
+    --sans: 'Sora', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --mono: 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    min-height: 100vh;
+    background: var(--ink);
+    color: var(--text);
+    font-family: var(--sans);
+    line-height: 1.55;
+    padding: env(safe-area-inset-top, 0) 0 env(safe-area-inset-bottom, 0);
+  }
+  main { max-width: 460px; margin: 0 auto; padding: 36px 20px 56px; }
+  h1 { font-size: 30px; line-height: 1.15; margin: 0 0 8px; font-weight: 700; letter-spacing: -0.02em; }
+  .lead { color: var(--muted); margin: 0 0 28px; font-size: 15px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 22px; }
+  label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+  .hint { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
+  input {
+    width: 100%; font: 500 18px var(--mono); color: var(--text);
+    background: var(--ink); border: 1.5px solid var(--line); border-radius: 12px;
+    padding: 14px 16px; outline: none;
+  }
+  input:focus-visible { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(255,200,87,.25); }
+  button {
+    font: 600 16px var(--sans); border: 0; border-radius: 12px; cursor: pointer;
+    padding: 14px 18px; width: 100%; margin-top: 16px;
+    background: var(--gold); color: var(--gold-ink);
+  }
+  button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+  button:disabled { opacity: .6; cursor: wait; }
+  button.ghost { background: transparent; color: var(--muted); border: 1.5px solid var(--line); margin-top: 12px; }
+  .err { color: var(--bad); font-size: 14px; margin: 12px 0 0; min-height: 1em; }
+  .hidden { display: none; }
+
+  .code { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 4px 0 18px; }
+  .tile {
+    font: 700 26px var(--mono); width: 34px; height: 52px; display: grid; place-items: center;
+    background: var(--ink); border: 1.5px solid var(--gold); color: var(--gold); border-radius: 10px;
+  }
+  .dash { color: var(--muted); font: 700 24px var(--mono); padding: 0 2px; }
+  @media (max-width: 360px) { .tile { width: 28px; height: 46px; font-size: 22px; } }
+
+  ol { padding-left: 20px; margin: 0 0 16px; color: var(--text); font-size: 15px; }
+  ol li { margin-bottom: 6px; }
+  .wait { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 14px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--gold); animation: pulse 1.2s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .25; } }
+  @media (prefers-reduced-motion: reduce) { .dot { animation: none; } }
+
+  .session {
+    font: 500 12px var(--mono); background: var(--ink); border: 1.5px solid var(--line);
+    border-radius: 12px; padding: 12px; max-height: 120px; overflow: auto; word-break: break-all; color: var(--ok);
+  }
+  .warn { font-size: 13px; color: var(--muted); margin: 14px 0 0; }
+  .warn b { color: var(--gold); }
+  footer { text-align: center; color: var(--muted); font-size: 13px; margin-top: 28px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Pair ADEZ NEXUS</h1>
+  <p class="lead">Link your WhatsApp and get the session ID your bot needs to start.</p>
+
+  <!-- Step: number -->
+  <section class="card" id="stepNumber">
+    <form id="form" autocomplete="off">
+      <label for="number">Your WhatsApp number</label>
+      <input id="number" name="number" type="tel" inputmode="numeric" placeholder="254111783552" required>
+      <p class="hint">Country code first, digits only. No plus sign or spaces.</p>
+      <button id="go" type="submit">Get pairing code</button>
+      <p class="err" id="err" role="alert"></p>
+    </form>
+  </section>
+
+  <!-- Step: code -->
+  <section class="card hidden" id="stepCode">
+    <div class="code" id="code" aria-live="polite"></div>
+    <ol>
+      <li>Open WhatsApp, then Settings, then Linked devices.</li>
+      <li>Tap Link a device, then Link with phone number instead.</li>
+      <li>Type the code above.</li>
+    </ol>
+    <div class="wait"><span class="dot"></span><span id="waitText">Waiting for you to enter the code</span></div>
+    <button class="ghost" id="restart1" type="button">Start over</button>
+  </section>
+
+  <!-- Step: session -->
+  <section class="card hidden" id="stepDone">
+    <label>Your session ID</label>
+    <div class="session" id="session"></div>
+    <button id="copy" type="button">Copy session ID</button>
+    <p class="warn">It was also sent to your own WhatsApp chat. Add it to Render as <b>SESSION_ID</b> and redeploy the bot.</p>
+    <p class="warn"><b>Never share it.</b> Anyone with this code controls your WhatsApp.</p>
+    <button class="ghost" id="restart2" type="button">Pair another number</button>
+  </section>
+
+  <footer>Powered by ADEZ TECH</footer>
+</main>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var poll = null;
+
+  function show(which) {
+    ['stepNumber', 'stepCode', 'stepDone'].forEach(function (id) {
+      $(id).classList.toggle('hidden', id !== which);
+    });
+  }
+
+  function renderCode(code) {
+    var box = $('code');
+    box.innerHTML = '';
+    code.split('').forEach(function (ch) {
+      var el = document.createElement(ch === '-' ? 'span' : 'span');
+      el.className = ch === '-' ? 'dash' : 'tile';
+      el.textContent = ch;
+      box.appendChild(el);
+    });
+  }
+
+  function reset() {
+    clearInterval(poll);
+    $('err').textContent = '';
+    $('go').disabled = false;
+    $('go').textContent = 'Get pairing code';
+    show('stepNumber');
+  }
+
+  function watch(id) {
+    clearInterval(poll);
+    poll = setInterval(function () {
+      fetch('/api/status/' + id)
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (d.status === 'linked') {
+            $('waitText').textContent = 'Linked. Creating your session ID';
+          } else if (d.status === 'done') {
+            clearInterval(poll);
+            $('session').textContent = d.session;
+            $('session').dataset.value = d.session;
+            show('stepDone');
+          } else if (d.status === 'error' || d.status === 'expired') {
+            clearInterval(poll);
+            reset();
+            $('err').textContent = d.error || 'This code expired. Start again for a new one.';
+          }
+        })
+        .catch(function () {});
+    }, 2000);
+  }
+
+  $('form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var number = $('number').value.replace(/\D/g, '');
+    $('err').textContent = '';
+    $('go').disabled = true;
+    $('go').textContent = 'Getting code...';
+    fetch('/api/pair', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ number: number })
+    })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+      .then(function (res) {
+        if (!res.ok) throw new Error(res.d.error || 'Something went wrong. Try again.');
+        renderCode(res.d.code);
+        show('stepCode');
+        watch(res.d.id);
+      })
+      .catch(function (err) {
+        $('err').textContent = err.message;
+        $('go').disabled = false;
+        $('go').textContent = 'Get pairing code';
+      });
+  });
+
+  $('copy').addEventListener('click', function () {
+    var text = $('session').dataset.value || '';
+    var done = function () {
+      $('copy').textContent = 'Copied';
+      setTimeout(function () { $('copy').textContent = 'Copy session ID'; }, 2000);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(function () {});
+    } else {
+      var r = document.createRange(); r.selectNodeContents($('session'));
+      var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+      try { document.execCommand('copy'); done(); } catch (e) {}
+    }
+  });
+
+  $('restart1').addEventListener('click', reset);
+  $('restart2').addEventListener('click', function () { $('session').textContent = ''; $('session').dataset.value = ''; reset(); });
+})();
+</script>
+</body>
+</html>
