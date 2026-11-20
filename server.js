@@ -16,7 +16,11 @@ import makeWASocket, {
 } from 'gifted-baileys';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const TMP = path.join(__dirname, 'tmp');
+// Vercel's deployed bundle is read-only. Use its writable temporary directory
+// for pairing state, while keeping ./tmp for local development.
+const TMP = process.env.VERCEL
+  ? path.join(process.env.TMPDIR || '/tmp', 'adez-nexus-pair')
+  : path.join(__dirname, 'tmp');
 fs.mkdirSync(TMP, { recursive: true });
 
 const PORT = parseInt(process.env.PORT || '3000');
@@ -162,4 +166,9 @@ app.get('/api/status/:id', (req, res) => {
 
 app.get('/health', (_req, res) => res.json({ ok: true, active: jobs.size }));
 
-app.listen(PORT, () => console.log(`ADEZ NEXUS pair site running on port ${PORT}`));
+// Vercel imports the default export as a serverless handler. Start a listener
+// only when running the project directly with `npm start`.
+export default app;
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => console.log(`ADEZ NEXUS pair site running on port ${PORT}`));
+}
