@@ -157,16 +157,16 @@
 
     <section class="section" id="how-it-works"><div class="shell"><div class="section-title"><div class="eyebrow">Simple by design</div><h2>From number to connected bot in three steps.</h2><p>No passwords or QR scanners. Just a temporary pairing code and a private session ID.</p></div><div class="steps"><article class="step"><div class="step-icon">01 / NUMBER</div><h3>Enter your number</h3><p>Use the full international number with the country code. Your number is only used to request the pairing code.</p></article><article class="step"><div class="step-icon">02 / LINK</div><h3>Link in WhatsApp</h3><p>Open Linked devices and enter the code. WhatsApp confirms the connection directly on your phone.</p></article><article class="step"><div class="step-icon">03 / SESSION</div><h3>Start your bot</h3><p>Copy the generated session ID into your bot environment and redeploy ADEZ NEXUS.</p></article></div></div></section>
 
-    <section class="section" id="faq"><div class="shell"><div class="section-title"><div class="eyebrow">Need to know</div><h2>Common questions.</h2></div><div class="faq"><details open><summary>Is my WhatsApp password stored?</summary><p>No. This flow uses WhatsApp’s device-linking protocol. Pairing files are temporary and removed after the session is created.</p></details><details><summary>Why does the code expire?</summary><p>Pairing codes are short-lived by design. If it expires, start over and generate a fresh code.</p></details><details><summary>Where do I put the session ID?</summary><p>Add it as the <b>SESSION_ID</b> environment variable on your ADEZ NEXUS bot service, then redeploy the bot.</p></details><details><summary>Why does pairing need Render or a VPS?</summary><p>The WhatsApp socket must remain alive while you link your phone. Static/serverless hosts such as Vercel can serve this page, but they cannot reliably keep that connection running.</p></details></div></div></section>
+    <section class="section" id="faq"><div class="shell"><div class="section-title"><div class="eyebrow">Need to know</div><h2>Common questions.</h2></div><div class="faq"><details open><summary>Is my WhatsApp password stored?</summary><p>No. This flow uses WhatsApp’s device-linking protocol. Pairing files are temporary and removed after the session is created.</p></details><details><summary>Why does the code expire?</summary><p>Pairing codes are short-lived by design. If it expires, start over and generate a fresh code.</p></details><details><summary>Where do I put the session ID?</summary><p>Add it as the <b>SESSION_ID</b> environment variable on your ADEZ NEXUS bot service, then redeploy the bot.</p></details><details><summary>Can I pair from Vercel?</summary><p>Yes. The pairing request stays open as a streamed function while you link your phone. Keep this tab open until the session ID appears.</p></details></div></div></section>
   </main>
   <footer class="shell"><span>© 2026 ADEZ TECH</span><span>Built for ADEZ NEXUS</span></footer>
 
   <script>
     (function () {
       var $ = function (id) { return document.getElementById(id); };
-      var poll = null, pairingCode = '';
-      var isVercel = /(^|\.)vercel\.app$/i.test(location.hostname);
-      if (isVercel) $('platformNotice').classList.add('show');
+      var pairingCode = '', reader = null;
+      $('platformNotice').classList.add('show');
+      $('platformNotice').innerHTML = '<span>●</span><span>Keep this tab open while WhatsApp confirms the link. You can copy the pairing code as soon as it appears.</span>';
       function show(which) { ['stepNumber', 'stepCode', 'stepDone'].forEach(function (id) { $(id).classList.toggle('hidden', id !== which); }); }
       function copyText(text, onDone) {
         if (!text) return;
@@ -177,23 +177,22 @@
         pairingCode = String(code || ''); var box = $('code'); box.innerHTML = '';
         pairingCode.split('').forEach(function (ch) { var el = document.createElement('span'); el.className = ch === '-' ? 'dash' : 'tile'; el.textContent = ch; box.appendChild(el); });
       }
-      function reset() { clearInterval(poll); $('err').textContent = ''; $('go').disabled = false; $('go').textContent = 'Get pairing code →'; $('pairCopyLabel').textContent = 'Copy code'; pairingCode = ''; show('stepNumber'); }
-      function watch(id) {
-        clearInterval(poll); poll = setInterval(function () {
-          fetch('/api/status/' + id).then(function (r) { return r.json(); }).then(function (d) {
-            if (d.status === 'linked') $('waitText').textContent = 'Linked. Creating your session ID';
-            else if (d.status === 'done') { clearInterval(poll); $('session').textContent = d.session; $('session').dataset.value = d.session; show('stepDone'); }
-            else if (d.status === 'error' || d.status === 'expired') { clearInterval(poll); reset(); $('err').textContent = d.error || 'This code expired. Start again for a new one.'; }
-          }).catch(function () {});
-        }, 2000);
+      function reset() { if (reader) try { reader.cancel(); } catch (e) {} $('err').textContent = ''; $('go').disabled = false; $('go').textContent = 'Get pairing code →'; $('pairCopyLabel').textContent = 'Copy code'; pairingCode = ''; show('stepNumber'); }
+      function handleEvent(event) {
+        if (event.type === 'code') { renderCode(event.code); show('stepCode'); $('waitText').textContent = 'Waiting for you to enter the code'; }
+        else if (event.type === 'linked') { $('waitText').textContent = 'Linked. Creating your session ID'; }
+        else if (event.type === 'session') { $('session').textContent = event.session; $('session').dataset.value = event.session; show('stepDone'); }
+        else if (event.type === 'error') throw new Error(event.message || 'Pairing failed. Please try again.');
       }
-      $('form').addEventListener('submit', function (e) {
-        e.preventDefault(); var number = $('number').value.replace(/\D/g, ''); $('err').textContent = ''; $('go').disabled = true; $('go').textContent = 'Getting code...';
-        fetch('/api/pair', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ number: number }) })
-          .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
-          .then(function (res) { if (!res.ok) throw new Error(res.d.error || 'Something went wrong. Try again.'); renderCode(res.d.code); show('stepCode'); watch(res.d.id); })
-          .catch(function (err) { $('err').textContent = err.message; $('go').disabled = false; $('go').textContent = 'Get pairing code →'; });
-      });
+      async function streamPairing(number) {
+        var response = await fetch('/api/pair', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/x-ndjson' }, body: JSON.stringify({ number: number }) });
+        if (!response.ok) { var error = await response.json().catch(function () { return {}; }); throw new Error(error.error || 'Something went wrong. Try again.'); }
+        if (!response.body) throw new Error('Your browser cannot stream the pairing session. Please use an updated browser.');
+        reader = response.body.getReader(); var decoder = new TextDecoder(); var buffer = '';
+        while (true) { var chunk = await reader.read(); if (chunk.done) break; buffer += decoder.decode(chunk.value, { stream: true }); var lines = buffer.split('\n'); buffer = lines.pop(); lines.forEach(function (line) { if (line.trim()) handleEvent(JSON.parse(line)); }); }
+        if (buffer.trim()) handleEvent(JSON.parse(buffer));
+      }
+      $('form').addEventListener('submit', function (e) { e.preventDefault(); var number = $('number').value.replace(/\D/g, ''); $('err').textContent = ''; $('go').disabled = true; $('go').textContent = 'Connecting to WhatsApp...'; streamPairing(number).catch(function (err) { $('err').textContent = err.message; $('go').disabled = false; $('go').textContent = 'Get pairing code →'; }); });
       $('copyPairCode').addEventListener('click', function () { copyText(pairingCode, function () { $('pairCopyLabel').textContent = 'Copied'; setTimeout(function () { $('pairCopyLabel').textContent = 'Copy code'; }, 1800); }); });
       $('copy').addEventListener('click', function () { copyText($('session').dataset.value || '', function () { $('copy').textContent = 'Copied'; setTimeout(function () { $('copy').textContent = 'Copy session ID'; }, 1800); }); });
       $('restart1').addEventListener('click', reset);
