@@ -132,6 +132,11 @@ async function startSocket(job, first) {
 }
 
 app.post('/api/pair', async (req, res) => {
+  if (process.env.VERCEL) {
+    return res.status(503).json({
+      error: 'WhatsApp pairing needs a persistent server. Deploy this service on Render, Railway, or a VPS, then open that service URL.'
+    });
+  }
   const ip = req.ip;
   if (rateLimited(ip)) return res.status(429).json({ error: 'Too many attempts. Wait a few minutes and try again.' });
 
@@ -164,7 +169,7 @@ app.get('/api/status/:id', (req, res) => {
   res.json({ status: job.status, session: job.status === 'done' ? job.session : undefined, error: job.error || undefined });
 });
 
-app.get('/health', (_req, res) => res.json({ ok: true, active: jobs.size }));
+app.get('/health', (_req, res) => res.json({ ok: true, active: jobs.size, pairingAvailable: !process.env.VERCEL }));
 
 // Vercel imports the default export as a serverless handler. Start a listener
 // only when running the project directly with `npm start`.
