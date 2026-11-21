@@ -118,6 +118,7 @@ export default async function handler(req, res) {
       await sleep(2500);                                   // let creds.json finish writing
       const raw = fs.readFileSync(path.join(dir, 'creds.json'));
       const session = 'ADEZ~' + zlib.gzipSync(raw).toString('base64');
+      console.log(`[${id}] session created`);
       emit({ type: 'session', session });
       const me = s.user?.id?.split(':')[0]?.split('@')[0] || number;
       try {
@@ -168,6 +169,7 @@ export default async function handler(req, res) {
       try {
         const raw = await s.requestPairingCode(number);
         hasCode = true;
+        console.log(`[${id}] pairing code issued`);
         emit({ type: 'code', code: raw.replace(/(.{4})(?=.)/, '$1-') });
       } catch (e) {
         console.error('requestPairingCode failed:', e.message);
@@ -182,6 +184,7 @@ export default async function handler(req, res) {
         clearTimeout(fallback);
         if (linked) return;
         linked = true;
+        console.log(`[${id}] linked, building session`);
         emit({ type: 'linked' });
         await complete(s);
       } else if (connection === 'close') {
@@ -219,3 +222,4 @@ export default async function handler(req, res) {
   try { fs.rmSync(dir, { recursive: true, force: true }); } catch {}
   try { res.end(); } catch {}
          }
+         
