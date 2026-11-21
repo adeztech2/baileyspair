@@ -3,8 +3,16 @@ services:
     name: baileyspair
     runtime: node
     plan: free
+    region: frankfurt
+    branch: main
     buildCommand: npm ci
     startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
     envVars:
       - key: NODE_VERSION
         value: 20
+      - key: KEEP_ALIVE_MINUTES
+        value: "4"
+      # Render sets RENDER_EXTERNAL_URL automatically, so keep-alive needs no URL.
+      # If you use a custom domain, add APP_URL=https://your-domain
