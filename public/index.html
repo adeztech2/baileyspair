@@ -3,22 +3,26 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
 <title>ADEZ NEXUS – Pair your WhatsApp</title>
-<meta name="theme-color" content="#0e1330">
+<meta name="theme-color" content="#12151b">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&family=Sora:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
-    --ink: #0e1330;
-    --panel: #171d45;
-    --line: #2a3270;
-    --text: #eef0ff;
-    --muted: #9aa3d6;
-    --gold: #ffc857;
-    --gold-ink: #2a1d00;
-    --ok: #6ee7b7;
-    --bad: #ff8a8a;
+    --bg: #12151b;          /* dark charcoal */
+    --bg-2: #171b23;
+    --panel: #1b202a;
+    --panel-2: #212836;
+    --line: #2c3444;
+    --text: #e8ecf4;
+    --muted: #8f9ab0;
+    --blue: #3b82f6;
+    --blue-hi: #60a5fa;
+    --blue-lo: #1d4ed8;
+    --ok: #5eead4;
+    --bad: #fca5a5;
     --sans: 'Sora', system-ui, -apple-system, 'Segoe UI', sans-serif;
     --mono: 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
   }
@@ -26,62 +30,104 @@
   html, body { margin: 0; }
   body {
     min-height: 100vh;
-    background: var(--ink);
+    background:
+      radial-gradient(900px 420px at 50% -120px, rgba(59,130,246,.22), transparent 70%),
+      var(--bg);
     color: var(--text);
     font-family: var(--sans);
     line-height: 1.55;
     padding: env(safe-area-inset-top, 0) 0 env(safe-area-inset-bottom, 0);
   }
-  main { max-width: 460px; margin: 0 auto; padding: 36px 20px 56px; }
-  h1 { font-size: 30px; line-height: 1.15; margin: 0 0 8px; font-weight: 700; letter-spacing: -0.02em; }
-  .lead { color: var(--muted); margin: 0 0 28px; font-size: 15px; }
-  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 22px; }
-  label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+
+  /* top bar */
+  .bar { border-bottom: 1px solid var(--line); background: rgba(18,21,27,.8); backdrop-filter: blur(8px); }
+  .bar-in { max-width: 980px; margin: 0 auto; padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: .02em; }
+  .brand svg { width: 28px; height: 28px; flex: none; }
+  .pill { font-size: 12px; color: var(--blue-hi); border: 1px solid rgba(96,165,250,.35); background: rgba(59,130,246,.1); padding: 5px 11px; border-radius: 999px; white-space: nowrap; }
+
+  main { max-width: 460px; margin: 0 auto; padding: 38px 20px 56px; }
+  h1 { font-size: 32px; line-height: 1.12; margin: 0 0 10px; font-weight: 700; letter-spacing: -0.02em; }
+  h1 span { color: var(--blue-hi); }
+  .lead { color: var(--muted); margin: 0 0 26px; font-size: 15px; }
+
+  .card { background: linear-gradient(180deg, var(--panel-2), var(--panel)); border: 1px solid var(--line); border-radius: 18px; padding: 22px; box-shadow: 0 18px 40px rgba(0,0,0,.35); }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+  label, .row .t { font-size: 14px; font-weight: 600; margin: 0; }
   .hint { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
+
   input {
-    width: 100%; font: 500 18px var(--mono); color: var(--text);
-    background: var(--ink); border: 1.5px solid var(--line); border-radius: 12px;
+    width: 100%; font: 500 18px var(--mono); color: var(--text); margin-top: 8px;
+    background: var(--bg); border: 1.5px solid var(--line); border-radius: 12px;
     padding: 14px 16px; outline: none;
   }
-  input:focus-visible { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(255,200,87,.25); }
+  input::placeholder { color: #566073; }
+  input:focus-visible { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(59,130,246,.3); }
+
   button {
     font: 600 16px var(--sans); border: 0; border-radius: 12px; cursor: pointer;
-    padding: 14px 18px; width: 100%; margin-top: 16px;
-    background: var(--gold); color: var(--gold-ink);
+    padding: 14px 18px; width: 100%; margin-top: 16px; color: #fff;
+    background: linear-gradient(180deg, var(--blue), var(--blue-lo));
   }
-  button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+  button:hover { filter: brightness(1.08); }
+  button:focus-visible { outline: 3px solid var(--blue-hi); outline-offset: 2px; }
   button:disabled { opacity: .6; cursor: wait; }
   button.ghost { background: transparent; color: var(--muted); border: 1.5px solid var(--line); margin-top: 12px; }
+
+  /* copy icon button */
+  button.icon {
+    width: 40px; height: 40px; padding: 0; margin: 0; flex: none; display: grid; place-items: center;
+    background: var(--bg); border: 1.5px solid var(--line); color: var(--blue-hi); border-radius: 10px;
+  }
+  button.icon:hover { border-color: var(--blue); }
+  button.icon svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  button.icon .i-check { display: none; }
+  button.icon.ok { color: var(--ok); border-color: var(--ok); }
+  button.icon.ok .i-check { display: block; }
+  button.icon.ok .i-copy { display: none; }
+
   .err { color: var(--bad); font-size: 14px; margin: 12px 0 0; min-height: 1em; }
   .hidden { display: none; }
 
-  .code { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 4px 0 18px; }
+  .code { display: flex; align-items: center; justify-content: center; gap: 5px; margin: 0 0 18px; }
   .tile {
-    font: 700 26px var(--mono); width: 34px; height: 52px; display: grid; place-items: center;
-    background: var(--ink); border: 1.5px solid var(--gold); color: var(--gold); border-radius: 10px;
+    flex: 1 1 0; min-width: 0; max-width: 38px; height: 54px; display: grid; place-items: center;
+    font: 700 clamp(18px, 6vw, 26px) var(--mono);
+    background: var(--bg); border: 1.5px solid var(--blue); color: var(--blue-hi); border-radius: 10px;
   }
-  .dash { color: var(--muted); font: 700 24px var(--mono); padding: 0 2px; }
-  @media (max-width: 360px) { .tile { width: 28px; height: 46px; font-size: 22px; } }
+  .dash { flex: 0 0 10px; text-align: center; color: var(--muted); font: 700 22px var(--mono); }
 
   ol { padding-left: 20px; margin: 0 0 16px; color: var(--text); font-size: 15px; }
   ol li { margin-bottom: 6px; }
   .wait { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 14px; }
-  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--gold); animation: pulse 1.2s ease-in-out infinite; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--blue); animation: pulse 1.2s ease-in-out infinite; }
   @keyframes pulse { 50% { opacity: .25; } }
   @media (prefers-reduced-motion: reduce) { .dot { animation: none; } }
 
   .session {
-    font: 500 12px var(--mono); background: var(--ink); border: 1.5px solid var(--line);
+    font: 500 12px var(--mono); background: var(--bg); border: 1.5px solid var(--line);
     border-radius: 12px; padding: 12px; max-height: 120px; overflow: auto; word-break: break-all; color: var(--ok);
   }
   .warn { font-size: 13px; color: var(--muted); margin: 14px 0 0; }
-  .warn b { color: var(--gold); }
-  footer { text-align: center; color: var(--muted); font-size: 13px; margin-top: 28px; }
+  .warn b { color: var(--blue-hi); }
+
+  footer { border-top: 1px solid var(--line); text-align: center; color: var(--muted); font-size: 13px; padding: 20px; }
+  footer b { color: var(--text); }
 </style>
 </head>
 <body>
+<header class="bar">
+  <div class="bar-in">
+    <div class="brand">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#60a5fa"/><stop offset="1" stop-color="#1d4ed8"/></linearGradient></defs><path d="M16 2 28 9v14l-12 7L4 23V9z" fill="url(#g)"/><path d="M11 22V10l10 12V10" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      ADEZ NEXUS
+    </div>
+    <span class="pill">WhatsApp pairing</span>
+  </div>
+</header>
+
 <main>
-  <h1>Pair ADEZ NEXUS</h1>
+  <h1>Pair <span>ADEZ NEXUS</span></h1>
   <p class="lead">Link your WhatsApp and get the session ID your bot needs to start.</p>
 
   <!-- Step: number -->
@@ -97,11 +143,18 @@
 
   <!-- Step: code -->
   <section class="card hidden" id="stepCode">
+    <div class="row">
+      <span class="t">Your pairing code</span>
+      <button class="icon" id="copyCode" type="button" aria-label="Copy pairing code" title="Copy code">
+        <svg class="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        <svg class="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>
+      </button>
+    </div>
     <div class="code" id="code" aria-live="polite"></div>
     <ol>
       <li>Open WhatsApp, then Settings, then Linked devices.</li>
       <li>Tap Link a device, then Link with phone number instead.</li>
-      <li>Type the code above.</li>
+      <li>Type or paste the code above.</li>
     </ol>
     <div class="wait"><span class="dot"></span><span id="waitText">Waiting for you to enter the code</span></div>
     <button class="ghost" id="restart1" type="button">Start over</button>
@@ -109,16 +162,22 @@
 
   <!-- Step: session -->
   <section class="card hidden" id="stepDone">
-    <label>Your session ID</label>
+    <div class="row">
+      <span class="t">Your session ID</span>
+      <button class="icon" id="copyIcon" type="button" aria-label="Copy session ID" title="Copy session ID">
+        <svg class="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        <svg class="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>
+      </button>
+    </div>
     <div class="session" id="session"></div>
     <button id="copy" type="button">Copy session ID</button>
-    <p class="warn">It was also sent to your own WhatsApp chat. Add it to Render as <b>SESSION_ID</b> and redeploy the bot.</p>
+    <p class="warn">It was also sent to your own WhatsApp chat. Add it to your host as <b>SESSION_ID</b> and redeploy the bot.</p>
     <p class="warn"><b>Never share it.</b> Anyone with this code controls your WhatsApp.</p>
     <button class="ghost" id="restart2" type="button">Pair another number</button>
   </section>
-
-  <footer>Powered by ADEZ TECH</footer>
 </main>
+
+<footer>Powered by <b>ADEZ TECH</b></footer>
 
 <script>
 (function () {
@@ -134,12 +193,31 @@
   function renderCode(code) {
     var box = $('code');
     box.innerHTML = '';
+    $('code').dataset.value = code.replace(/-/g, '');   // copy without the dash
     code.split('').forEach(function (ch) {
       var el = document.createElement('span');
       el.className = ch === '-' ? 'dash' : 'tile';
       el.textContent = ch;
       box.appendChild(el);
     });
+  }
+
+  function copyText(text, onDone) {
+    if (!text) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(onDone).catch(function () {});
+    } else {
+      var ta = document.createElement('textarea');
+      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); onDone(); } catch (e) {}
+      document.body.removeChild(ta);
+    }
+  }
+
+  function flash(btn) {
+    btn.classList.add('ok');
+    setTimeout(function () { btn.classList.remove('ok'); }, 1800);
   }
 
   function reset(message) {
@@ -213,20 +291,22 @@
     });
   });
 
-  $('copy').addEventListener('click', function () {
-    var text = $('session').dataset.value || '';
-    var done = function () {
-      $('copy').textContent = 'Copied';
-      setTimeout(function () { $('copy').textContent = 'Copy session ID'; }, 2000);
-    };
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(done).catch(function () {});
-    } else {
-      var rg = document.createRange(); rg.selectNodeContents($('session'));
-      var s = window.getSelection(); s.removeAllRanges(); s.addRange(rg);
-      try { document.execCommand('copy'); done(); } catch (e) {}
-    }
+  $('copyCode').addEventListener('click', function () {
+    var b = this;
+    copyText($('code').dataset.value, function () { flash(b); });
   });
+
+  function copySession(btn) {
+    copyText($('session').dataset.value, function () {
+      flash($('copyIcon'));
+      if (btn === $('copy')) {
+        $('copy').textContent = 'Copied';
+        setTimeout(function () { $('copy').textContent = 'Copy session ID'; }, 1800);
+      }
+    });
+  }
+  $('copy').addEventListener('click', function () { copySession(this); });
+  $('copyIcon').addEventListener('click', function () { copySession(this); });
 
   $('restart1').addEventListener('click', function () { reset(); });
   $('restart2').addEventListener('click', function () {
