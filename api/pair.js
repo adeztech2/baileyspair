@@ -27,6 +27,14 @@ const BROWSERS = {
 };
 const BROWSER = BROWSERS[(process.env.PAIR_BROWSER || 'safari').toLowerCase()] || BROWSERS.safari;
 
+// If WhatsApp refuses a connection (405), retry with the next identity in this list.
+const CONFIGS = [
+  { browser: BROWSER,                          fetched: true  },
+  { browser: BROWSERS.chrome,                  fetched: true  },
+  { browser: ['Mac OS', 'Chrome', '14.4.1'],   fetched: false },
+  { browser: BROWSERS.chrome,                  fetched: false }
+];
+
 let _version = null, _versionAt = 0;
 async function getVersion() {
   if (_version && Date.now() - _versionAt < 3_600_000) return _version;
@@ -70,7 +78,7 @@ export default async function handler(req, res) {
   const dir = path.join(os.tmpdir(), 'nexus-pair-' + id);   // /tmp is the only writable place on Vercel
   fs.mkdirSync(dir, { recursive: true });
 
-  let sock = null, over = false, hasCode = false, linked = false, attempts = 0;
+  let sock = null, over = false, hasCode = false, linked = false;
   let finish;
   const finished = new Promise(r => { finish = r; });
   const stop = (message) => {
@@ -87,7 +95,7 @@ export default async function handler(req, res) {
     try {
       await sleep(2500);                                   // let creds.json finish writing
       const raw = fs.readFileSync(path.join(dir, 'creds.json'));
-      const session = 'Gifted~' + zlib.gzipSync(raw).toString('base64');
+      const session = 'ADEZ~' + zlib.gzipSync(raw).toString('base64');
       emit({ type: 'session', session });
       const me = s.user?.id?.split(':')[0]?.split('@')[0] || number;
       try {
@@ -102,16 +110,18 @@ export default async function handler(req, res) {
     }
   }
 
-  async function start(first) {
+  async function start(first, idx = 0) {
+    const cfg = CONFIGS[idx];
     const { state, saveCreds } = await useMultiFileAuthState(dir);
-    const version = await getVersion();
+    const version = cfg.fetched ? await getVersion() : undefined;
+    console.log(`[${id}] try ${idx + 1}/${CONFIGS.length} browser=${cfg.browser.join('/')} version=${version ? version.join('.') : 'built-in'}`);
     const s = makeWASocket({
       version,
       auth: { creds: state.creds, keys: makeCacheableSignalKeyStore(state.keys, logger) },
       printQRInTerminal: false,
       syncFullHistory: false,
       logger,
-      browser: BROWSER,
+      browser: cfg.browser,
       connectTimeoutMs: 30_000,
       keepAliveIntervalMs: 25_000
     });
@@ -148,9 +158,16 @@ export default async function handler(req, res) {
         console.log(`[${id}] closed code=${code} hasCode=${hasCode}`);
         if (code === DisconnectReason.restartRequired) {
           // WhatsApp asks for a restart right after the code is accepted
-          try { await start(false); } catch { stop('Connection failed after linking. Please try again.'); }
-        } else if (!hasCode && ++attempts <= 3) {
-          try { await start(true); } catch { stop('Could not reach WhatsApp. Please try again.'); }
+          try { await start(false, idx); } catch { stop('Connection failed after linking. Please try again.'); }
+        } else if (!hasCode && idx + 1 < CONFIGS.length) {
+          // refused before we had a code (usually 405): wipe and retry with the next identity
+          try {
+            fs.rmSync(dir, { recursive: true, force: true });
+            fs.mkdirSync(dir, { recursive: true });
+            await start(true, idx + 1);
+          } catch { stop('Could not reach WhatsApp. Please try again.'); }
+        } else if (code === 405) {
+          stop('WhatsApp refused the connection (405) on every attempt. Wait a minute and try again. If it keeps happening, this host\'s IP is probably being blocked.');
         } else if (code === DisconnectReason.loggedOut) {
           stop('WhatsApp rejected the link (code 401). Wait a minute, then try again.');
         } else {
@@ -172,4 +189,4 @@ export default async function handler(req, res) {
   try { sock?.ev.removeAllListeners(); sock?.end(undefined); } catch {}
   try { fs.rmSync(dir, { recursive: true, force: true }); } catch {}
   try { res.end(); } catch {}
-}
+          }
