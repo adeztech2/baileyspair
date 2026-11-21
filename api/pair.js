@@ -1,52 +1,68 @@
 // One request does the whole pairing and streams progress back (NDJSON):
 //   {type:'code', code}  ->  {type:'linked'}  ->  {type:'session', session}  |  {type:'error', message}
 // Works on Vercel (single long-running function) and on a normal Node server (see server.js).
+//
+// Two WhatsApp libraries are installed (see package.json): the latest official Baileys
+// ("baileys-latest") and gifted-baileys. If WhatsApp refuses one (405), the next is tried.
 import pino from 'pino';
 import zlib from 'zlib';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import crypto from 'crypto';
-import makeWASocket, {
-  useMultiFileAuthState,
-  DisconnectReason,
-  fetchLatestWaWebVersion,
-  makeCacheableSignalKeyStore
-} from 'gifted-baileys';
-import * as B from 'gifted-baileys';
 
 const logger = pino({ level: 'silent' });
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const TOTAL_TIMEOUT = 270_000;     // stay under Vercel's 300s function limit
+const RESTART_REQUIRED = 515;      // WhatsApp asks for a restart right after the code is accepted
+const LOGGED_OUT = 401;
 
-// Browser identity shown in WhatsApp > Linked devices. Default Safari.
-// If linking keeps failing, set PAIR_BROWSER=chrome in the project's environment variables.
 const BROWSERS = {
   safari: ['Mac OS', 'Safari', '17.5.1'],
   chrome: ['Ubuntu', 'Chrome', '22.04.4'],
-  edge:   ['Windows', 'Edge', '124.0.0']
+  macchrome: ['Mac OS', 'Chrome', '14.4.1']
 };
 const BROWSER = BROWSERS[(process.env.PAIR_BROWSER || 'safari').toLowerCase()] || BROWSERS.safari;
 
-// If WhatsApp refuses a connection (405), retry with the next identity in this list.
-// ver: 'builtin' = the library's own version, 'web' = latest WhatsApp Web, 'baileys' = latest Baileys-recommended
+// Tried in order until WhatsApp hands out a pairing code.
+// ver: 'builtin' = library's own version, 'web' = latest WhatsApp Web, 'baileys' = latest Baileys-recommended
 const CONFIGS = [
-  { browser: BROWSER,                          ver: 'builtin' },
-  { browser: BROWSER,                          ver: 'baileys' },
-  { browser: BROWSERS.chrome,                  ver: 'builtin' },
-  { browser: BROWSERS.chrome,                  ver: 'web'     },
-  { browser: ['Mac OS', 'Chrome', '14.4.1'],   ver: 'baileys' }
+  { lib: 'baileys-latest', browser: BROWSER,            ver: 'web'     },
+  { lib: 'baileys-latest', browser: BROWSERS.chrome,    ver: 'web'     },
+  { lib: 'baileys-latest', browser: BROWSER,            ver: 'builtin' },
+  { lib: 'gifted-baileys', browser: BROWSER,            ver: 'builtin' },
+  { lib: 'gifted-baileys', browser: BROWSERS.chrome,    ver: 'baileys' },
+  { lib: 'gifted-baileys', browser: BROWSERS.macchrome, ver: 'web'     }
 ];
 
+const libs = {};
+async function loadLib(name) {
+  if (libs[name]) return libs[name];
+  const m = await import(name);
+  const d = m.default;
+  const make = typeof d === 'function' ? d : (typeof d?.default === 'function' ? d.default : m.makeWASocket);
+  if (typeof make !== 'function') throw new Error(`${name}: no socket factory found`);
+  const pick = (k) => m[k] ?? d?.[k] ?? d?.default?.[k];
+  libs[name] = {
+    make,
+    useMultiFileAuthState: pick('useMultiFileAuthState'),
+    makeCacheableSignalKeyStore: pick('makeCacheableSignalKeyStore'),
+    fetchLatestWaWebVersion: pick('fetchLatestWaWebVersion'),
+    fetchLatestBaileysVersion: pick('fetchLatestBaileysVersion')
+  };
+  return libs[name];
+}
+
 const _cache = {};
-async function getVersion(kind) {
+async function getVersion(L, lib, kind) {
   if (kind === 'builtin') return undefined;
-  const c = _cache[kind];
+  const key = lib + ':' + kind;
+  const c = _cache[key];
   if (c && Date.now() - c.at < 3_600_000) return c.v;
   try {
-    const fn = kind === 'baileys' ? B.fetchLatestBaileysVersion : fetchLatestWaWebVersion;
+    const fn = kind === 'baileys' ? L.fetchLatestBaileysVersion : L.fetchLatestWaWebVersion;
     const r = fn ? await Promise.race([fn(), sleep(4000).then(() => null)]) : null;
-    if (r?.version) { _cache[kind] = { v: r.version, at: Date.now() }; return r.version; }
+    if (r?.version) { _cache[key] = { v: r.version, at: Date.now() }; return r.version; }
   } catch {}
   return undefined;                // fall back to the library's built-in version
 }
@@ -116,13 +132,23 @@ export default async function handler(req, res) {
     }
   }
 
-  async function start(first, idx = 0) {
+  // Start config #idx; if its library can't even load, move on to the next one.
+  async function startFrom(first, idx) {
+    for (let i = idx; i < CONFIGS.length; i++) {
+      try { await start(first, i); return; }
+      catch (e) { console.error(`[${id}] config ${i + 1} could not start: ${e.message}`); }
+    }
+    stop('Could not start pairing. Please try again.');
+  }
+
+  async function start(first, idx) {
     const cfg = CONFIGS[idx];
-    const { state, saveCreds } = await useMultiFileAuthState(dir);
-    const version = await getVersion(cfg.ver);
-    console.log(`[${id}] try ${idx + 1}/${CONFIGS.length} browser=${cfg.browser.join('/')} version=${version ? cfg.ver + ':' + version.join('.') : 'built-in'}`);
+    const L = await loadLib(cfg.lib);
+    const { state, saveCreds } = await L.useMultiFileAuthState(dir);
+    const version = await getVersion(L, cfg.lib, cfg.ver);
+    console.log(`[${id}] try ${idx + 1}/${CONFIGS.length} lib=${cfg.lib} browser=${cfg.browser.join('/')} version=${version ? cfg.ver + ':' + version.join('.') : 'built-in'}`);
     const opts = {
-      auth: { creds: state.creds, keys: makeCacheableSignalKeyStore(state.keys, logger) },
+      auth: { creds: state.creds, keys: L.makeCacheableSignalKeyStore(state.keys, logger) },
       printQRInTerminal: false,
       syncFullHistory: false,
       logger,
@@ -131,7 +157,7 @@ export default async function handler(req, res) {
       keepAliveIntervalMs: 25_000
     };
     if (version) opts.version = version;   // never pass version: undefined, it overrides the library default and crashes
-    const s = makeWASocket(opts);
+    const s = L.make(opts);
     sock = s;
     s.ev.on('creds.update', saveCreds);
 
@@ -163,19 +189,15 @@ export default async function handler(req, res) {
         if (over || linked) return;
         const code = lastDisconnect?.error?.output?.statusCode;
         console.log(`[${id}] closed code=${code} hasCode=${hasCode} reason=${lastDisconnect?.error?.message || 'none'}`);
-        if (code === DisconnectReason.restartRequired) {
-          // WhatsApp asks for a restart right after the code is accepted
+        if (code === RESTART_REQUIRED) {
           try { await start(false, idx); } catch { stop('Connection failed after linking. Please try again.'); }
         } else if (!hasCode && idx + 1 < CONFIGS.length) {
-          // refused before we had a code (usually 405): wipe and retry with the next identity
-          try {
-            fs.rmSync(dir, { recursive: true, force: true });
-            fs.mkdirSync(dir, { recursive: true });
-            await start(true, idx + 1);
-          } catch { stop('Could not reach WhatsApp. Please try again.'); }
+          // refused before we had a code (usually 405): wipe and retry with the next config
+          try { fs.rmSync(dir, { recursive: true, force: true }); fs.mkdirSync(dir, { recursive: true }); } catch {}
+          await startFrom(true, idx + 1);
         } else if (code === 405) {
           stop('WhatsApp refused the connection (405) on every attempt. Wait a minute and try again. If it keeps happening, this host\'s IP is probably being blocked.');
-        } else if (code === DisconnectReason.loggedOut) {
+        } else if (code === LOGGED_OUT) {
           stop('WhatsApp rejected the link (code 401). Wait a minute, then try again.');
         } else {
           stop(`The connection dropped (code ${code ?? 'unknown'}). Start again for a new code.`);
@@ -185,7 +207,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    await start(true);
+    await startFrom(true, 0);
     await finished;
   } catch (e) {
     console.error('pair error:', e.message);
@@ -196,4 +218,4 @@ export default async function handler(req, res) {
   try { sock?.ev.removeAllListeners(); sock?.end(undefined); } catch {}
   try { fs.rmSync(dir, { recursive: true, force: true }); } catch {}
   try { res.end(); } catch {}
-          }
+         }
