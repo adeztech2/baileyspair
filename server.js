@@ -13,7 +13,6 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.post('/api/pair', pair);
 app.get('/health', (_req, res) => res.json({ ok: true }));
 app.listen(parseInt(process.env.PORT || '3000'), () => {
-  let lib = 'unknown';
-  try { lib = JSON.parse(fs.readFileSync(path.join(__dirname, 'node_modules/gifted-baileys/package.json'), 'utf8')).version; } catch {}
-  console.log(`ADEZ NEXUS pair site running (gifted-baileys ${lib}, node ${process.version})`);
+  const ver = (n) => { try { return JSON.parse(fs.readFileSync(path.join(__dirname, 'node_modules', n, 'package.json'), 'utf8')).version; } catch { return 'missing'; } };
+  console.log(`ADEZ NEXUS pair site running (baileys-latest ${ver('baileys-latest')}, gifted-baileys ${ver('gifted-baileys')}, node ${process.version})`);
 });
