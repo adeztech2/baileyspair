@@ -13,6 +13,7 @@ import makeWASocket, {
   fetchLatestWaWebVersion,
   makeCacheableSignalKeyStore
 } from 'gifted-baileys';
+import * as B from 'gifted-baileys';
 
 const logger = pino({ level: 'silent' });
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
@@ -28,21 +29,26 @@ const BROWSERS = {
 const BROWSER = BROWSERS[(process.env.PAIR_BROWSER || 'safari').toLowerCase()] || BROWSERS.safari;
 
 // If WhatsApp refuses a connection (405), retry with the next identity in this list.
+// ver: 'builtin' = the library's own version, 'web' = latest WhatsApp Web, 'baileys' = latest Baileys-recommended
 const CONFIGS = [
-  { browser: BROWSER,                          fetched: true  },
-  { browser: BROWSERS.chrome,                  fetched: true  },
-  { browser: ['Mac OS', 'Chrome', '14.4.1'],   fetched: false },
-  { browser: BROWSERS.chrome,                  fetched: false }
+  { browser: BROWSER,                          ver: 'builtin' },
+  { browser: BROWSER,                          ver: 'baileys' },
+  { browser: BROWSERS.chrome,                  ver: 'builtin' },
+  { browser: BROWSERS.chrome,                  ver: 'web'     },
+  { browser: ['Mac OS', 'Chrome', '14.4.1'],   ver: 'baileys' }
 ];
 
-let _version = null, _versionAt = 0;
-async function getVersion() {
-  if (_version && Date.now() - _versionAt < 3_600_000) return _version;
+const _cache = {};
+async function getVersion(kind) {
+  if (kind === 'builtin') return undefined;
+  const c = _cache[kind];
+  if (c && Date.now() - c.at < 3_600_000) return c.v;
   try {
-    const r = await Promise.race([fetchLatestWaWebVersion(), sleep(4000).then(() => null)]);
-    if (r?.version) { _version = r.version; _versionAt = Date.now(); }
+    const fn = kind === 'baileys' ? B.fetchLatestBaileysVersion : fetchLatestWaWebVersion;
+    const r = fn ? await Promise.race([fn(), sleep(4000).then(() => null)]) : null;
+    if (r?.version) { _cache[kind] = { v: r.version, at: Date.now() }; return r.version; }
   } catch {}
-  return _version || undefined;    // undefined = library's built-in version
+  return undefined;                // fall back to the library's built-in version
 }
 
 const hits = new Map();            // per-instance rate limit
@@ -113,10 +119,9 @@ export default async function handler(req, res) {
   async function start(first, idx = 0) {
     const cfg = CONFIGS[idx];
     const { state, saveCreds } = await useMultiFileAuthState(dir);
-    const version = cfg.fetched ? await getVersion() : undefined;
-    console.log(`[${id}] try ${idx + 1}/${CONFIGS.length} browser=${cfg.browser.join('/')} version=${version ? version.join('.') : 'built-in'}`);
-    const s = makeWASocket({
-      version,
+    const version = await getVersion(cfg.ver);
+    console.log(`[${id}] try ${idx + 1}/${CONFIGS.length} browser=${cfg.browser.join('/')} version=${version ? cfg.ver + ':' + version.join('.') : 'built-in'}`);
+    const opts = {
       auth: { creds: state.creds, keys: makeCacheableSignalKeyStore(state.keys, logger) },
       printQRInTerminal: false,
       syncFullHistory: false,
@@ -124,7 +129,9 @@ export default async function handler(req, res) {
       browser: cfg.browser,
       connectTimeoutMs: 30_000,
       keepAliveIntervalMs: 25_000
-    });
+    };
+    if (version) opts.version = version;   // never pass version: undefined, it overrides the library default and crashes
+    const s = makeWASocket(opts);
     sock = s;
     s.ev.on('creds.update', saveCreds);
 
@@ -189,4 +196,4 @@ export default async function handler(req, res) {
   try { sock?.ev.removeAllListeners(); sock?.end(undefined); } catch {}
   try { fs.rmSync(dir, { recursive: true, force: true }); } catch {}
   try { res.end(); } catch {}
-    }
+          }
