@@ -155,7 +155,7 @@ export default async function handler(req, res) {
         clearTimeout(fallback);
         if (over || linked) return;
         const code = lastDisconnect?.error?.output?.statusCode;
-        console.log(`[${id}] closed code=${code} hasCode=${hasCode}`);
+        console.log(`[${id}] closed code=${code} hasCode=${hasCode} reason=${lastDisconnect?.error?.message || 'none'}`);
         if (code === DisconnectReason.restartRequired) {
           // WhatsApp asks for a restart right after the code is accepted
           try { await start(false, idx); } catch { stop('Connection failed after linking. Please try again.'); }
@@ -189,4 +189,4 @@ export default async function handler(req, res) {
   try { sock?.ev.removeAllListeners(); sock?.end(undefined); } catch {}
   try { fs.rmSync(dir, { recursive: true, force: true }); } catch {}
   try { res.end(); } catch {}
-          }
+    }
