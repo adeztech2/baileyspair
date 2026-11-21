@@ -1,12 +1,17 @@
 {
   "name": "adez-nexus-pair",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Pairing site for the ADEZ NEXUS WhatsApp bot",
   "type": "module",
-  "scripts": { "start": "node server.js" },
-  "engines": { "node": "20.x" },
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": "20.x"
+  },
   "dependencies": {
     "express": "^4.19.2",
+    "baileys-latest": "npm:@whiskeysockets/baileys@latest",
     "gifted-baileys": "github:mauricegift/baileys-new",
     "pino": "^9.0.0"
   }
