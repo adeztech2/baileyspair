@@ -1,6 +1,6 @@
 <h1 align="center">ADEZ NEXUS Pair Site</h1>
 
-<p align="center">Generates a pairing code and a <code>SESSION_ID</code> (<code>Gifted~...</code>) for the ADEZ NEXUS bot.</p>
+<p align="center">Generates a pairing code and a <code>SESSION_ID</code> (<code>ADEZ~...</code>) for the ADEZ NEXUS bot.</p>
 
 <p align="center">
   <a href="https://render.com/deploy?repo=https://github.com/adeztech2/baileyspair">
