@@ -10,6 +10,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import crypto from 'crypto';
+import { createRequire } from 'module';
 
 const logger = pino({ level: 'silent' });
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
@@ -65,6 +66,60 @@ async function getVersion(L, lib, kind) {
     if (r?.version) { _cache[key] = { v: r.version, at: Date.now() }; return r.version; }
   } catch {}
   return undefined;                // fall back to the library's built-in version
+}
+
+
+// ── Buttons (gifted-btns) ────────────────────────────────────────────────────
+// Links shown on the "session created" message. Override with env vars on your host.
+const LINKS = {
+  channel: process.env.PAIR_CHANNEL_URL || 'https://whatsapp.com/channel/0029Vb8N0xYLikgHxdGh790m',
+  group:   process.env.PAIR_GROUP_URL   || 'https://chat.whatsapp.com/CvpcZcqPckCCIFT1QpQsqs',
+  repo:    process.env.PAIR_REPO_URL    || 'https://github.com/adeztech2/baileys'
+};
+const FOOTER = process.env.PAIR_FOOTER || 'ᴘᴏᴡᴇʀᴇᴅ ʙʏ ᴀᴅᴇᴢ ᴛᴇᴄʜ';
+
+const requireCjs = createRequire(import.meta.url);
+let _btns;                                   // undefined = not tried yet, null = unavailable
+function giftedButtons() {
+  if (_btns === undefined) {
+    try { _btns = requireCjs('gifted-btns'); }
+    catch (e) { console.error('gifted-btns not available (run npm install):', e.message); _btns = null; }
+  }
+  return _btns;
+}
+
+const urlBtn  = (text, url) => ({ name: 'cta_url',  buttonParamsJson: JSON.stringify({ display_text: text, url }) });
+const copyBtn = (text, code) => ({ name: 'cta_copy', buttonParamsJson: JSON.stringify({ display_text: text, copy_code: code }) });
+
+const HELP_TEXT =
+  '✅ *ADEZ NEXUS session created*\n\n' +
+  '1️⃣ Tap *Copy Session ID* (or copy the message above)\n' +
+  '2️⃣ Set it as *SESSION_ID* on your host\n' +
+  '3️⃣ Deploy your bot\n\n' +
+  '⚠️ Never share this code. Anyone with it controls your WhatsApp.';
+
+/** Sends the session buttons. Returns true if a button message went out. */
+async function sendSessionButtons(s, jid, session) {
+  const B = giftedButtons();
+  if (!B?.sendButtons) return false;
+
+  const links = [
+    urlBtn('📢 Channel', LINKS.channel),
+    urlBtn('👥 Support Group', LINKS.group),
+    urlBtn('🌐 GitHub', LINKS.repo)
+  ];
+  // A very long copy_code can be refused, so retry without the copy button before giving up.
+  const attempts = [[copyBtn('📋 Copy Session ID', session), ...links], links];
+
+  for (const buttons of attempts) {
+    try {
+      await B.sendButtons(s, jid, { title: 'ADEZ NEXUS', text: HELP_TEXT, footer: FOOTER, buttons });
+      return true;
+    } catch (e) {
+      console.error('session buttons failed:', e.message);
+    }
+  }
+  return false;
 }
 
 const hits = new Map();            // per-instance rate limit
@@ -123,8 +178,10 @@ export default async function handler(req, res) {
       const me = s.user?.id?.split(':')[0]?.split('@')[0] || number;
       try {
         const jid = me + '@s.whatsapp.net';
-        await s.sendMessage(jid, { text: session });
-        await s.sendMessage(jid, { text: '✅ *ADEZ NEXUS session created*\n\nCopy the message above and set it as SESSION_ID for your bot.\n\n⚠️ Never share this code. Anyone with it controls your WhatsApp.' });
+        await s.sendMessage(jid, { text: session });                       // plain text first: always copyable
+        if (!(await sendSessionButtons(s, jid, session))) {                // buttons, or plain text if they fail
+          await s.sendMessage(jid, { text: HELP_TEXT.replace('(or copy the message above)', 'the message above') });
+        }
       } catch (e) { console.error('DM failed:', e.message); }
       await sleep(2500);
       over = true; finish();                               // no logout: that would kill the session
@@ -222,4 +279,5 @@ export default async function handler(req, res) {
   try { fs.rmSync(dir, { recursive: true, force: true }); } catch {}
   try { res.end(); } catch {}
          }
-         
+
+    
