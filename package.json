@@ -10,9 +10,10 @@
     "node": "20.x"
   },
   "dependencies": {
-    "express": "^4.19.2",
     "baileys-latest": "npm:@whiskeysockets/baileys@latest",
+    "express": "^4.19.2",
     "gifted-baileys": "github:mauricegift/baileys-new",
+    "gifted-btns": "*",
     "pino": "^9.0.0"
   }
 }
